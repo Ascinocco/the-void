@@ -207,6 +207,15 @@ export default function NewsPage() {
     fetchNewsData();
   }, []);
 
+  // Generate topic groups dynamically from API data
+  const topicGroups = useMemo(() => {
+    const articles = newsData?.data || mockNewsData.data;
+    const uniqueTopicGroups = Array.from(
+      new Set(articles.map((article) => article.topic_groups.topic_group))
+    ).sort();
+    return ["All Topics", ...uniqueTopicGroups];
+  }, [newsData]);
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       month: "short",
