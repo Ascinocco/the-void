@@ -1,7 +1,6 @@
 import { Job } from "../types/job";
 import { Logger } from "../utils/logger";
 import { type DataService } from "../services/dataService";
-import { SocialMediaService } from "../services/socialMediaService";
 import { BlueskyService } from "../services/blueskyService";
 import { MastodonService } from "../services/mastedonService";
 import { SocialMediaPost } from "../types/database";
@@ -9,11 +8,13 @@ import { UnifiedSocialPost } from "../types/social";
 
 interface SocialMediaUpdatesJobParams {
   data: DataService;
-  socialMedia: SocialMediaService;
   bluesky: BlueskyService;
   mastodon: MastodonService;
 }
 
+/**
+ * For compliance with social media platforms, ensure their social media posts are updated or removed regularly
+ */
 export class SocialMediaUpdatesJob implements Job {
   public readonly name = "social-media-updates-job";
   public readonly description =
@@ -22,29 +23,40 @@ export class SocialMediaUpdatesJob implements Job {
   public readonly dependencies?: string[] = undefined;
 
   private readonly dataService: DataService;
-  private readonly socialMediaService: SocialMediaService;
   private readonly blueskyService: BlueskyService;
   private readonly mastodonService: MastodonService;
 
-  constructor({
-    data,
-    socialMedia,
-    bluesky,
-    mastodon,
-  }: SocialMediaUpdatesJobParams) {
+  constructor({ data, bluesky, mastodon }: SocialMediaUpdatesJobParams) {
     this.dataService = data;
-    this.socialMediaService = socialMedia;
     this.blueskyService = bluesky;
     this.mastodonService = mastodon;
   }
 
   async execute(): Promise<void> {
-    Logger.info("Starting social media updates job");
+    Logger.info("🚀 Starting social media updates job");
 
     try {
       // Get posts that need updating (older than 24 hours)
       const twentyFourHoursAgo = new Date();
       twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+
+      Logger.info("🔍 Querying for posts older than:", {
+        cutoffTime: twentyFourHoursAgo.toISOString(),
+      });
+
+      // First, let's see how many posts are in the database total
+      const { count: totalPosts, error: countError } =
+        await this.dataService.supabase
+          .from("social_media_posts")
+          .select("*", { count: "exact", head: true });
+
+      if (countError) {
+        Logger.warn("Could not count total posts:", {
+          error: countError.message,
+        });
+      } else {
+        Logger.info(`📊 Total posts in database: ${totalPosts}`);
+      }
 
       const { data: postsToUpdate, error } = await this.dataService.supabase
         .from("social_media_posts")
@@ -53,12 +65,19 @@ export class SocialMediaUpdatesJob implements Job {
         .order("db_updated_at", { ascending: true })
         .limit(100); // Process in batches to avoid overwhelming APIs
 
+      Logger.info("📋 Query completed", {
+        postsFound: postsToUpdate?.length || 0,
+        hasError: !!error,
+      });
+
       if (error) {
         throw new Error(`Failed to fetch posts for update: ${error.message}`);
       }
 
       if (!postsToUpdate || postsToUpdate.length === 0) {
-        Logger.info("No social media posts need updating");
+        Logger.info(
+          "ℹ️  No social media posts need updating (all posts are less than 24 hours old)"
+        );
         return;
       }
 
@@ -89,7 +108,7 @@ export class SocialMediaUpdatesJob implements Job {
         }
       }
 
-      Logger.info("Social media updates job completed", {
+      Logger.info("✅ Social media updates job completed", {
         postsProcessed: postsToUpdate.length,
         updated: updatedCount,
         deleted: deletedCount,
