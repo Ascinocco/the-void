@@ -5,6 +5,8 @@ import { Logger } from "./utils/logger";
 export class JobScheduler {
   private jobs: Map<string, Job> = new Map();
   private scheduledTasks: Map<string, cron.ScheduledTask> = new Map();
+  private scheduleToJobs: Map<string, Set<string>> = new Map();
+  private isExecuting: boolean = false;
 
   /**
    * Register a job to be run on a schedule
@@ -31,22 +33,28 @@ export class JobScheduler {
       this.validateJobDependencies(job);
     }
 
-    // Schedule the job - for now we'll keep individual job scheduling
-    // but we could enhance this to run dependency resolution on each trigger
-    const task = cron.schedule(
-      cronExpression,
-      async () => {
-        // For now, execute all jobs with dependencies when any job is triggered
-        // This ensures dependencies are always respected
-        await this.executeJobsWithDependencies();
-      },
-      {
-        scheduled: false, // Don't start immediately
-        timezone: "UTC",
-      }
-    );
+    // Track which jobs belong to which schedule
+    if (!this.scheduleToJobs.has(cronExpression)) {
+      this.scheduleToJobs.set(cronExpression, new Set());
 
-    this.scheduledTasks.set(job.name, task);
+      // Create a single scheduled task for this cron expression
+      const task = cron.schedule(
+        cronExpression,
+        async () => {
+          // Execute all jobs with dependencies - but only once per schedule trigger
+          await this.executeJobsWithDependencies();
+        },
+        {
+          scheduled: false, // Don't start immediately
+          timezone: "UTC",
+        }
+      );
+
+      this.scheduledTasks.set(cronExpression, task);
+    }
+
+    // Add this job to the schedule group
+    this.scheduleToJobs.get(cronExpression)!.add(job.name);
   }
 
   /**
@@ -168,55 +176,68 @@ export class JobScheduler {
    * Execute all jobs respecting dependencies
    */
   async executeJobsWithDependencies(): Promise<JobResult[]> {
+    // Prevent concurrent executions
+    if (this.isExecuting) {
+      Logger.warn(
+        "Job execution already in progress, skipping concurrent execution"
+      );
+      return [];
+    }
+
+    this.isExecuting = true;
     Logger.info("Executing jobs with dependency resolution");
 
-    const executionOrder = this.resolveDependencies();
-    const results: JobResult[] = [];
-    const completedJobs = new Set<string>();
+    try {
+      const executionOrder = this.resolveDependencies();
+      const results: JobResult[] = [];
+      const completedJobs = new Set<string>();
 
-    for (const jobName of executionOrder) {
-      const job = this.jobs.get(jobName);
-      if (!job) continue;
+      for (const jobName of executionOrder) {
+        const job = this.jobs.get(jobName);
+        if (!job) continue;
 
-      // Check if all dependencies completed successfully
-      let dependenciesMet = true;
-      let skippedReason = "";
+        // Check if all dependencies completed successfully
+        let dependenciesMet = true;
+        let skippedReason = "";
 
-      if (job.dependencies) {
-        for (const depName of job.dependencies) {
-          if (!completedJobs.has(depName)) {
-            dependenciesMet = false;
-            skippedReason = `Dependency failed or was skipped: ${depName}`;
-            break;
+        if (job.dependencies) {
+          for (const depName of job.dependencies) {
+            if (!completedJobs.has(depName)) {
+              dependenciesMet = false;
+              skippedReason = `Dependency failed or was skipped: ${depName}`;
+              break;
+            }
           }
+        }
+
+        if (!dependenciesMet) {
+          Logger.warn(`Skipping job ${jobName}: ${skippedReason}`);
+          results.push({
+            success: false,
+            jobName,
+            dependenciesMet: false,
+            skippedReason,
+            executionTime: 0,
+          });
+          continue;
+        }
+
+        // Execute the job
+        const result = await this.executeJob(jobName);
+        result.jobName = jobName;
+        result.dependenciesMet = true;
+        results.push(result);
+
+        // Mark as completed only if successful
+        if (result.success) {
+          completedJobs.add(jobName);
         }
       }
 
-      if (!dependenciesMet) {
-        Logger.warn(`Skipping job ${jobName}: ${skippedReason}`);
-        results.push({
-          success: false,
-          jobName,
-          dependenciesMet: false,
-          skippedReason,
-          executionTime: 0,
-        });
-        continue;
-      }
-
-      // Execute the job
-      const result = await this.executeJob(jobName);
-      result.jobName = jobName;
-      result.dependenciesMet = true;
-      results.push(result);
-
-      // Mark as completed only if successful
-      if (result.success) {
-        completedJobs.add(jobName);
-      }
+      return results;
+    } finally {
+      this.isExecuting = false;
     }
-
-    return results;
   }
 
   /**
@@ -225,8 +246,13 @@ export class JobScheduler {
   start(): void {
     Logger.info("Starting job scheduler");
 
-    for (const [jobName, task] of this.scheduledTasks) {
-      Logger.info(`Starting scheduled job: ${jobName}`);
+    for (const [cronExpression, task] of this.scheduledTasks) {
+      const jobsInSchedule = Array.from(
+        this.scheduleToJobs.get(cronExpression) || []
+      );
+      Logger.info(`Starting scheduled task for cron: ${cronExpression}`, {
+        jobs: jobsInSchedule,
+      });
       task.start();
     }
   }
@@ -276,8 +302,13 @@ export class JobScheduler {
     }
 
     // Then start the scheduled tasks
-    for (const [jobName, task] of this.scheduledTasks) {
-      Logger.info(`Starting scheduled job: ${jobName}`);
+    for (const [cronExpression, task] of this.scheduledTasks) {
+      const jobsInSchedule = Array.from(
+        this.scheduleToJobs.get(cronExpression) || []
+      );
+      Logger.info(`Starting scheduled task for cron: ${cronExpression}`, {
+        jobs: jobsInSchedule,
+      });
       task.start();
     }
   }
@@ -288,8 +319,13 @@ export class JobScheduler {
   stop(): void {
     Logger.info("Stopping job scheduler");
 
-    for (const [jobName, task] of this.scheduledTasks) {
-      Logger.info(`Stopping scheduled job: ${jobName}`);
+    for (const [cronExpression, task] of this.scheduledTasks) {
+      const jobsInSchedule = Array.from(
+        this.scheduleToJobs.get(cronExpression) || []
+      );
+      Logger.info(`Stopping scheduled task for cron: ${cronExpression}`, {
+        jobs: jobsInSchedule,
+      });
       task.stop();
     }
   }
@@ -360,10 +396,22 @@ export class JobScheduler {
    * Remove a job from the scheduler
    */
   removeJob(jobName: string): boolean {
-    const task = this.scheduledTasks.get(jobName);
-    if (task) {
-      task.stop();
-      this.scheduledTasks.delete(jobName);
+    // Find and remove the job from schedule groups
+    for (const [cronExpression, jobSet] of this.scheduleToJobs) {
+      if (jobSet.has(jobName)) {
+        jobSet.delete(jobName);
+
+        // If this was the last job in the schedule, remove the scheduled task
+        if (jobSet.size === 0) {
+          const task = this.scheduledTasks.get(cronExpression);
+          if (task) {
+            task.stop();
+            this.scheduledTasks.delete(cronExpression);
+          }
+          this.scheduleToJobs.delete(cronExpression);
+        }
+        break;
+      }
     }
 
     return this.jobs.delete(jobName);

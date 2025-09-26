@@ -5,9 +5,9 @@ import { RssParsingJob } from "./jobs/rssParsingJob";
 import { Logger } from "./utils/logger";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
-import { tavily } from "@tavily/core";
 import { DataService } from "./services/dataService";
 import { LLMService } from "./services/llmService";
+import { SearchService } from "./services/searchService";
 import { AiAnalysisJob } from "./jobs/aiAnalysisJob";
 import { SocialMediaSearchJob } from "./jobs/socialMediaSearchJob";
 
@@ -29,13 +29,8 @@ async function main() {
       EnvConfig.getRequired("SUPABASE_SERVICE_ROLE_KEY")
     );
 
-    const tvly = tavily({
-      apiKey: EnvConfig.getRequired("TAVILY_API_KEY"),
-    });
-
     const dataService = new DataService({
       supabase,
-      tavily: tvly,
     });
 
     const llmService = new LLMService({
@@ -43,15 +38,19 @@ async function main() {
       openRouter,
     });
 
+    const searchService = new SearchService();
+
     // Register jobs
     const rssParsingJob = new RssParsingJob({
       llm: llmService,
       data: dataService,
+      search: searchService,
     });
 
     const aiAnalysisJob = new AiAnalysisJob({
       llm: llmService,
       data: dataService,
+      search: searchService,
     });
 
     const socialMediaSearchJob = new SocialMediaSearchJob({

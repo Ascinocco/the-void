@@ -1,4 +1,5 @@
 import { AiAnalysisService } from "../services/aiAnalysisService";
+import { SearchService } from "../services/searchService";
 import { Job } from "../types/job";
 import { type LLMService } from "../services/llmService";
 import { type DataService } from "../services/dataService";
@@ -9,6 +10,7 @@ import { Logger } from "../utils/logger";
 interface AiAnalysisJobParams {
   llm: LLMService;
   data: DataService;
+  search: SearchService;
 }
 
 export class AiAnalysisJob implements Job {
@@ -19,12 +21,13 @@ export class AiAnalysisJob implements Job {
   private readonly dataService: DataService;
   private readonly llmService: LLMService;
 
-  constructor({ llm, data }: AiAnalysisJobParams) {
+  constructor({ llm, data, search }: AiAnalysisJobParams) {
     this.dataService = data;
     this.llmService = llm;
+
     this.aiAnalysisService = new AiAnalysisService({
       llm,
-      data,
+      search,
     });
   }
 

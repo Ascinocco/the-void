@@ -1,20 +1,24 @@
 import { type LLMService } from "./llmService";
 import { type DataService } from "./dataService";
+import { type SearchService } from "./searchService";
 import { extractFromXml } from "@extractus/feed-extractor";
 import { Logger } from "../utils/logger";
 
 interface ParseFeedsServiceParams {
   llm: LLMService;
   data: DataService;
+  search: SearchService;
 }
 
 export class RssParsingService {
   private readonly llm: LLMService;
   private readonly data: DataService;
+  private readonly search: SearchService;
 
-  constructor({ llm, data }: ParseFeedsServiceParams) {
+  constructor({ llm, data, search }: ParseFeedsServiceParams) {
     this.llm = llm;
     this.data = data;
+    this.search = search;
   }
 
   upsertTopicGroup = async (topicGroup: string) => {
@@ -183,10 +187,13 @@ export class RssParsingService {
   };
 
   extractArticleData = async (link: string) => {
-    const { results, failedResults } = await this.data.tavily.extract([link], {
-      includeImages: false,
-      includeFavicon: false,
-    });
+    const { results, failedResults } = await this.search.tavily.extract(
+      [link],
+      {
+        includeImages: false,
+        includeFavicon: false,
+      }
+    );
 
     if (failedResults[0]?.error) {
       return null;

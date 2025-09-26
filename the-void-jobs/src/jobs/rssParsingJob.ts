@@ -4,13 +4,14 @@ import { AnalysisStatus, RSS_FEEDS } from "../lib/constants";
 import { type LLMService } from "../services/llmService";
 import { type DataService } from "../services/dataService";
 import { RssParsingService } from "../services/rssParsingService";
-import { TavilyService } from "../services/tavilyService";
+import { SearchService } from "../services/searchService";
 import { RelatedContentService } from "../services/relatedContentService";
 import { FeedData } from "@extractus/feed-extractor";
 
 interface ParseFeedsJobParams {
   llm: LLMService;
   data: DataService;
+  search: SearchService;
 }
 
 export class RssParsingJob implements Job {
@@ -21,17 +22,17 @@ export class RssParsingJob implements Job {
   private readonly dataService: DataService;
   private readonly relatedContentService: RelatedContentService;
 
-  constructor({ llm, data }: ParseFeedsJobParams) {
+  constructor({ llm, data, search }: ParseFeedsJobParams) {
     this.dataService = data;
+
     this.rssParsingService = new RssParsingService({
       llm,
       data,
+      search,
     });
 
-    // Initialize Tavily and Related Content services
-    const tavilyService = new TavilyService();
     this.relatedContentService = new RelatedContentService({
-      tavilyService,
+      searchService: search,
       llmService: llm,
     });
   }

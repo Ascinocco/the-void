@@ -1,19 +1,18 @@
 import { type LLMService } from "./llmService";
-import { type DataService } from "./dataService";
-import { extractFromXml } from "@extractus/feed-extractor";
+import { type SearchService } from "./searchService";
 
 interface AiAnalysisServiceParams {
   llm: LLMService;
-  data: DataService;
+  search: SearchService;
 }
 
 export class AiAnalysisService {
   private readonly llm: LLMService;
-  private readonly data: DataService;
+  private readonly search: SearchService;
 
-  constructor({ llm, data }: AiAnalysisServiceParams) {
+  constructor({ llm, search }: AiAnalysisServiceParams) {
     this.llm = llm;
-    this.data = data;
+    this.search = search;
   }
 
   // summarize article.
@@ -193,7 +192,7 @@ Return ONLY the JSON array, no additional text.`;
     for (const claimObj of claims.slice(0, 3)) {
       // Limit to 3 searches to manage API costs
       try {
-        const searchResult = await this.data.tavily.search(
+        const searchResult = await this.search.tavily.search(
           claimObj.searchQuery,
           {
             searchDepth: "basic",

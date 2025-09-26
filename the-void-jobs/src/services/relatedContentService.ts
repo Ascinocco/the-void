@@ -1,5 +1,5 @@
 import { Logger } from "../utils/logger";
-import { TavilyService, SearchResult } from "./tavilyService";
+import { SearchService, SearchResult } from "./searchService";
 import { LLMService } from "./llmService";
 
 export interface RelatedArticle {
@@ -10,16 +10,16 @@ export interface RelatedArticle {
 }
 
 export interface RelatedContentServiceParams {
-  tavilyService: TavilyService;
+  searchService: SearchService;
   llmService: LLMService;
 }
 
 export class RelatedContentService {
-  private tavilyService: TavilyService;
+  private searchService: SearchService;
   private llmService: LLMService;
 
-  constructor({ tavilyService, llmService }: RelatedContentServiceParams) {
-    this.tavilyService = tavilyService;
+  constructor({ searchService, llmService }: RelatedContentServiceParams) {
+    this.searchService = searchService;
     this.llmService = llmService;
   }
 
@@ -61,7 +61,7 @@ export class RelatedContentService {
 
       for (const query of searchQueries) {
         try {
-          const results = await this.tavilyService.searchNews(query, 3); // Get 3 results per query
+          const results = await this.searchService.searchNews(query, 3); // Get 3 results per query
           allResults.push(...results);
         } catch (error) {
           Logger.warn(`Failed to search for query: ${query} ${error}`);

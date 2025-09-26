@@ -10,17 +10,12 @@ export interface SearchResult {
   published_date?: string;
 }
 
-export interface TavilyServiceParams {
-  apiKey?: string;
-}
-
 // @TODO: Tony - remove tavily from data service
-export class TavilyService {
-  private client: ReturnType<typeof tavily>;
+export class SearchService {
+  public readonly tavily: ReturnType<typeof tavily>;
 
-  constructor({ apiKey }: TavilyServiceParams = {}) {
-    const key = apiKey || EnvConfig.getRequired("TAVILY_API_KEY");
-    this.client = tavily({ apiKey: key });
+  constructor() {
+    this.tavily = tavily({ apiKey: EnvConfig.getRequired("TAVILY_API_KEY") });
   }
 
   /**
@@ -33,7 +28,7 @@ export class TavilyService {
     try {
       Logger.info(`Searching Tavily for: ${query}`);
 
-      const response = await this.client.search(query, {
+      const response = await this.tavily.search(query, {
         max_results: maxResults,
         search_depth: "basic",
         include_answer: false,
@@ -73,7 +68,7 @@ export class TavilyService {
     try {
       Logger.info(`Searching Tavily news for: ${query}`);
 
-      const response = await this.client.search(query, {
+      const response = await this.tavily.search(query, {
         max_results: maxResults,
         search_depth: "basic",
         include_answer: false,
