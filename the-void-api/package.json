@@ -20,6 +20,7 @@
   "dependencies": {
     "@extractus/feed-extractor": "^7.1.7",
     "@fastify/autoload": "^6.0.0",
+    "@fastify/cors": "^11.1.0",
     "@fastify/sensible": "^6.0.0",
     "@supabase/supabase-js": "^2.57.4",
     "dotenv": "^17.2.2",
