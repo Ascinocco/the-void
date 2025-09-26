@@ -25,46 +25,11 @@ export class MastodonService {
       defaultAccessToken ??
       (EnvConfig.get("MASTODON_ACCESS_TOKEN") || undefined);
 
-    // Log initialization
-    Logger.info("MastodonService initialized", {
-      instance: this.defaultInstance,
-      hasToken: !!this.defaultAccessToken,
-    });
-
     if (!this.defaultAccessToken) {
       Logger.warn(
         "MastodonService initialized without authentication - " +
           "search results may be limited. Consider setting MASTODON_ACCESS_TOKEN for better results."
       );
-    }
-  }
-
-  /**
-   * Test Mastodon instance connectivity and search functionality
-   * @param query Simple test query
-   * @returns Promise<boolean> True if search works
-   */
-  async testConnectivity(query: string = "hello"): Promise<boolean> {
-    try {
-      Logger.info(`Testing Mastodon connectivity with query: "${query}"`);
-
-      const response = await this.search({
-        query,
-        type: "statuses",
-        limit: 1,
-      });
-
-      Logger.info("Mastodon connectivity test result", {
-        success: true,
-        statusesFound: response.statuses?.length || 0,
-        accountsFound: response.accounts?.length || 0,
-        hashtagsFound: response.hashtags?.length || 0,
-      });
-
-      return true;
-    } catch (error) {
-      Logger.error("Mastodon connectivity test failed", error as Error);
-      return false;
     }
   }
 
@@ -93,16 +58,6 @@ export class MastodonService {
         headers["Authorization"] = `Bearer ${accessToken}`;
       }
 
-      Logger.debug("Making Mastodon search request", {
-        baseUrl,
-        endpoint,
-        query: options.query,
-        type: options.type,
-        limit: options.limit,
-        fullUrl: `${baseUrl}${endpoint}?${params}`,
-        hasAuth: !!accessToken,
-      });
-
       const response = await fetch(`${baseUrl}${endpoint}?${params}`, {
         method: "GET",
         headers,
@@ -126,14 +81,6 @@ export class MastodonService {
       }
 
       const data = (await response.json()) as MastodonSearchResponse;
-      Logger.info("Mastodon search completed successfully", {
-        query: options.query,
-        accountsFound: data.accounts?.length || 0,
-        statusesFound: data.statuses?.length || 0,
-        hashtagsFound: data.hashtags?.length || 0,
-        responseKeys: Object.keys(data),
-        fullResponse: JSON.stringify(data).substring(0, 500) + "...",
-      });
 
       return data;
     } catch (error) {
@@ -157,11 +104,6 @@ export class MastodonService {
     options?: Omit<MastodonSearchOptions, "query" | "type">
   ): Promise<UnifiedSocialPost[]> => {
     try {
-      Logger.info(`Searching for top posts by popularity: "${query}"`, {
-        hasAuth: !!(options?.accessToken || this.defaultAccessToken),
-        instance: options?.instance || this.defaultInstance,
-      });
-
       // Search for more posts than needed to have a better selection for sorting
       const searchLimit = Math.min((options?.limit || 10) * 3, 40); // Get 3x the requested amount, max 40
 
@@ -175,15 +117,6 @@ export class MastodonService {
       const posts = response.statuses || [];
 
       if (posts.length === 0) {
-        Logger.warn(`No Mastodon posts found for query: "${query}"`, {
-          searchResponse: {
-            accountsFound: response.accounts?.length || 0,
-            hashtagsFound: response.hashtags?.length || 0,
-            statusesFound: response.statuses?.length || 0,
-          },
-          searchLimit,
-          instance: options?.instance || this.defaultInstance,
-        });
         return [];
       }
 
@@ -196,22 +129,6 @@ export class MastodonService {
         }))
         .sort((a, b) => b.popularityScore - a.popularityScore)
         .slice(0, options?.limit || 10); // Take only the requested number
-
-      Logger.info(
-        `Found ${sortedPosts.length} top posts for query: "${query}"`,
-        {
-          topScore: sortedPosts[0]?.popularityScore || 0,
-          averageScore:
-            sortedPosts.length > 0
-              ? Math.round(
-                  sortedPosts.reduce(
-                    (sum, post) => sum + post.popularityScore,
-                    0
-                  ) / sortedPosts.length
-                )
-              : 0,
-        }
-      );
 
       // Transform Mastodon posts to UnifiedSocialPost format
       const unifiedPosts = sortedPosts.map((post) =>

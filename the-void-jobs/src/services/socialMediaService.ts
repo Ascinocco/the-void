@@ -46,18 +46,12 @@ export class SocialMediaService {
     const postsPerPlatform = options?.postsPerPlatform || 10;
 
     try {
-      Logger.info(
-        `Starting social media search for content of ${content.length} characters`
-      );
-
       // Step 1: Use AI to generate optimized search query
       const searchQuery = await this.llm.generateSocialMediaQuery(content);
 
       if (!searchQuery || searchQuery.trim().length === 0) {
         throw new Error("Failed to generate search query from content");
       }
-
-      Logger.info(`Generated search query: "${searchQuery}"`);
 
       // Step 2: Search both platforms in parallel for efficiency
       const [blueskyPosts, mastodonPosts] = await Promise.allSettled([
@@ -96,15 +90,6 @@ export class SocialMediaService {
         totalPosts: blueskyResults.length + mastodonResults.length,
         generatedAt: new Date(),
       };
-
-      const duration = Date.now() - startTime;
-      Logger.info(`Social media search completed in ${duration}ms`, {
-        query: searchQuery,
-        blueskyResults: blueskyResults.length,
-        mastodonResults: mastodonResults.length,
-        totalResults: result.totalPosts,
-        duration,
-      });
 
       return result;
     } catch (error) {
@@ -207,31 +192,14 @@ export class SocialMediaService {
     posts: UnifiedSocialPost[]
   ): Promise<void> => {
     if (posts.length === 0) {
-      Logger.info("No posts to save to database");
       return;
     }
 
     try {
-      Logger.info(`Saving ${posts.length} social media posts to database`);
-
       // Transform posts to database format
       const dbPosts: CreateSocialMediaPost[] = posts.map((post) =>
         this.transformPostForDatabase(post)
       );
-
-      // Log the IDs being saved for debugging
-      const postIds = dbPosts.map((post) => ({
-        id: post.id,
-        platform: post.platform,
-        idLength: post.id.length,
-      }));
-
-      Logger.debug("Social media post IDs being saved", {
-        totalPosts: dbPosts.length,
-        blueskyPosts: postIds.filter((p) => p.platform === "bluesky").length,
-        mastodonPosts: postIds.filter((p) => p.platform === "mastodon").length,
-        sampleIds: postIds.slice(0, 3), // Log first 3 IDs as samples
-      });
 
       // Insert posts using upsert to handle duplicates
       // ignoreDuplicates: false means we UPDATE existing posts with fresh data
@@ -246,10 +214,6 @@ export class SocialMediaService {
       if (error) {
         throw new Error(`Failed to save social media posts: ${error.message}`);
       }
-
-      Logger.info(
-        `Successfully saved ${posts.length} social media posts to database`
-      );
     } catch (error) {
       Logger.error(
         "Failed to save social media posts to database",
@@ -273,15 +237,10 @@ export class SocialMediaService {
     postIds: string[]
   ): Promise<void> => {
     if (postIds.length === 0) {
-      Logger.info("No posts to link to article");
       return;
     }
 
     try {
-      Logger.info(
-        `Linking ${postIds.length} social media posts to article ${articleId}`
-      );
-
       // Create junction table entries
       const articleSocialPosts: CreateArticleSocialPost[] = postIds.map(
         (postId) => ({
@@ -301,10 +260,6 @@ export class SocialMediaService {
       if (error) {
         throw new Error(`Failed to link posts to article: ${error.message}`);
       }
-
-      Logger.info(
-        `Successfully linked ${postIds.length} posts to article ${articleId}`
-      );
     } catch (error) {
       Logger.error("Failed to link posts to article", error as Error, {
         articleId,
@@ -325,15 +280,10 @@ export class SocialMediaService {
     articleId: number
   ): Promise<void> => {
     if (posts.length === 0) {
-      Logger.info("No posts to save and link");
       return;
     }
 
     try {
-      Logger.info(
-        `Saving and linking ${posts.length} posts to article ${articleId}`
-      );
-
       // First save the posts
       await this.saveSocialPostsToDatabase(posts);
 
@@ -355,10 +305,6 @@ export class SocialMediaService {
           `Failed to update article status: ${updateError.message}`
         );
       }
-
-      Logger.info(
-        `Successfully saved and linked ${posts.length} posts to article ${articleId} and updated status to complete`
-      );
     } catch (error) {
       Logger.error("Failed to save and link posts to article", error as Error, {
         articleId,
@@ -377,8 +323,6 @@ export class SocialMediaService {
     articleId: number
   ): Promise<UnifiedSocialPost[]> => {
     try {
-      Logger.info(`Getting social media posts for article ${articleId}`);
-
       const { data, error } = await this.dataService.supabase
         .from("article_social_posts")
         .select(
@@ -394,7 +338,6 @@ export class SocialMediaService {
       }
 
       if (!data || data.length === 0) {
-        Logger.info(`No social media posts found for article ${articleId}`);
         return [];
       }
 
@@ -427,9 +370,6 @@ export class SocialMediaService {
         };
       });
 
-      Logger.info(
-        `Found ${posts.length} social media posts for article ${articleId}`
-      );
       return posts;
     } catch (error) {
       Logger.error("Failed to get posts for article", error as Error, {

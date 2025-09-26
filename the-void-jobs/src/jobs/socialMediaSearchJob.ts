@@ -51,7 +51,8 @@ export class SocialMediaSearchJob implements Job {
           !article.description
         ) {
           Logger.error(
-            "Article missing summary or topic or title or description"
+            "Article missing summary or topic or title or description",
+            new Error("Missing required article fields")
           );
           continue;
         }
@@ -73,10 +74,12 @@ export class SocialMediaSearchJob implements Job {
           article.id
         );
       }
-      Logger.info("Successfully completed Social Media Search Job");
+      Logger.info("Successfully completed social media search job");
     } catch (error) {
-      Logger.error("Social Media Search Job Failed");
-      console.error("Error ------- ", error);
+      Logger.error(
+        "Social media search job failed",
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
   }
 }

@@ -26,7 +26,6 @@ export class BlueskyService {
     // If accessToken is provided directly, use it
     if (accessToken) {
       this.accessToken = accessToken;
-      Logger.info("BlueskyService initialized with provided access token");
       return;
     }
 
@@ -37,13 +36,7 @@ export class BlueskyService {
 
     if (envAccessToken) {
       this.accessToken = envAccessToken;
-      Logger.info(
-        "BlueskyService initialized with access token from environment"
-      );
     } else if (envIdentifier && envPassword) {
-      Logger.info(
-        "BlueskyService will authenticate using identifier and password"
-      );
       // Start authentication process
       this.authenticationPromise = this.authenticate(
         envIdentifier,
@@ -66,8 +59,6 @@ export class BlueskyService {
     password: string
   ): Promise<void> {
     try {
-      Logger.info("Authenticating with Bluesky API");
-
       const response = await fetch(
         `${this.baseUrl}/xrpc/com.atproto.server.createSession`,
         {
@@ -101,11 +92,6 @@ export class BlueskyService {
         refreshJwt: string;
       };
       this.accessToken = data.accessJwt;
-
-      Logger.info("Bluesky authentication successful", {
-        identifier: identifier.replace(/@.*/, "@***"), // Hide domain for privacy
-        tokenLength: this.accessToken?.length || 0,
-      });
     } catch (error) {
       Logger.error("Bluesky authentication failed", error as Error, {
         identifier: identifier.replace(/@.*/, "@***"), // Hide domain for privacy
@@ -232,12 +218,6 @@ export class BlueskyService {
       }
 
       const data = (await response.json()) as BlueskySearchResponse;
-      Logger.info("Bluesky search completed successfully", {
-        query: options.query,
-        postsFound: data.posts?.length || 0,
-        cursor: data.cursor,
-        hitsTotal: data.hitsTotal,
-      });
 
       return data;
     } catch (error) {
@@ -261,8 +241,6 @@ export class BlueskyService {
     options?: Omit<BlueskySearchOptions, "query" | "sort">
   ): Promise<UnifiedSocialPost[]> => {
     try {
-      Logger.info(`Searching for top posts by popularity: "${query}"`);
-
       // Use Bluesky's native "top" sorting - much more efficient than manual sorting
       const response = await this.search({
         ...options,
@@ -274,16 +252,8 @@ export class BlueskyService {
       const posts = response.posts || [];
 
       if (posts.length === 0) {
-        Logger.info(`No posts found for query: "${query}"`);
         return [];
       }
-
-      Logger.info(`Found ${posts.length} top posts for query: "${query}"`, {
-        totalHits: response.hitsTotal,
-        cursor: response.cursor,
-        topPostLikes: posts[0]?.likeCount || 0,
-        topPostReposts: posts[0]?.repostCount || 0,
-      });
 
       // Transform Bluesky posts to UnifiedSocialPost format
       const unifiedPosts = posts.map((post) =>
