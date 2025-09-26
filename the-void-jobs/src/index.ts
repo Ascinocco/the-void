@@ -77,7 +77,6 @@ async function main() {
 
     const socialMediaUpdatesJob = new SocialMediaUpdatesJob({
       data: dataService,
-      socialMedia: socialMediaService,
       bluesky: blueskyService,
       mastodon: mastodonService,
     });
