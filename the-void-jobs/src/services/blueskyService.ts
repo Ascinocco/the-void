@@ -121,6 +121,91 @@ export class BlueskyService {
   }
 
   /**
+   * Get specific posts by their URIs
+   * @param uris Array of post URIs to fetch
+   * @returns Promise<PostView[]> Array of post views
+   */
+  getPosts = async (uris: string[]): Promise<PostView[]> => {
+    try {
+      // Ensure we're authenticated before making the request
+      await this.ensureAuthenticated();
+
+      // Rate limiting: ensure minimum interval between requests
+      const now = Date.now();
+      const timeSinceLastRequest = now - this.lastRequestTime;
+      if (timeSinceLastRequest < this.minRequestInterval) {
+        const delay = this.minRequestInterval - timeSinceLastRequest;
+        Logger.debug(
+          `Rate limiting: waiting ${delay}ms before Bluesky request`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      this.lastRequestTime = Date.now();
+
+      const endpoint = "/xrpc/app.bsky.feed.getPosts";
+
+      const params = new URLSearchParams();
+      uris.forEach((uri) => params.append("uris", uri));
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // Use authenticated token
+      if (this.accessToken) {
+        headers["Authorization"] = `Bearer ${this.accessToken}`;
+      }
+
+      Logger.debug("Making Bluesky getPosts request", {
+        baseUrl: this.baseUrl,
+        endpoint,
+        uris,
+      });
+
+      const response = await fetch(`${this.baseUrl}${endpoint}?${params}`, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(
+          `Bluesky getPosts API error: ${response.status} - ${errorText}`,
+          undefined,
+          {
+            status: response.status,
+            uris,
+          }
+        );
+        throw new Error(`Bluesky API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = (await response.json()) as { posts?: PostView[] };
+      return data.posts || [];
+    } catch (error) {
+      Logger.error("Bluesky getPosts request failed", error as Error, {
+        uris,
+      });
+      throw error;
+    }
+  };
+
+  /**
+   * Get a single post by its URI
+   * @param uri The post URI to fetch
+   * @returns Promise<PostView | null> The post or null if not found
+   */
+  getPost = async (uri: string): Promise<PostView | null> => {
+    try {
+      const posts = await this.getPosts([uri]);
+      return posts.length > 0 ? posts[0]! : null;
+    } catch (error) {
+      Logger.debug(`Failed to fetch Bluesky post ${uri}: ${error}`);
+      return null;
+    }
+  };
+
+  /**
    * Search Bluesky for posts with various options
    */
   search = async (

@@ -6,9 +6,10 @@ import { type DataService } from "../services/dataService";
 import { SocialMediaService } from "../services/socialMediaService";
 import { Article } from "../types/database";
 
-interface ParseFeedsJobParams {
+interface SocialMediaSearchJobParams {
   llm: LLMService;
   data: DataService;
+  socialMedia: SocialMediaService;
 }
 
 export class SocialMediaSearchJob implements Job {
@@ -19,12 +20,9 @@ export class SocialMediaSearchJob implements Job {
   private readonly dataService: DataService;
   private readonly socialMediaService: SocialMediaService;
 
-  constructor({ llm, data }: ParseFeedsJobParams) {
+  constructor({ llm, data, socialMedia }: SocialMediaSearchJobParams) {
     this.dataService = data;
-    this.socialMediaService = new SocialMediaService({
-      llm,
-      data,
-    });
+    this.socialMediaService = socialMedia;
   }
 
   async execute(): Promise<void> {

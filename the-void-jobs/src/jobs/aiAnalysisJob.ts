@@ -46,6 +46,11 @@ export class AiAnalysisJob implements Job {
 
       const articles: Array<Article> = articlesResponse;
 
+      if (!articles || !articles.length) {
+        Logger.error("Ai Analysis Job Complete");
+        return;
+      }
+
       for (const article of articles) {
         if (!article.original_content) {
           Logger.error("Original Article Content Missing.");
@@ -95,6 +100,7 @@ export class AiAnalysisJob implements Job {
       }
 
       // Process articles here
+      Logger.error("Ai Analysis Job Complete");
     } catch (error) {
       Logger.error("Ai Analysis Job Failed");
       console.error("Error---------", error);

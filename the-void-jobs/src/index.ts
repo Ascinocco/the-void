@@ -10,6 +10,10 @@ import { LLMService } from "./services/llmService";
 import { SearchService } from "./services/searchService";
 import { AiAnalysisJob } from "./jobs/aiAnalysisJob";
 import { SocialMediaSearchJob } from "./jobs/socialMediaSearchJob";
+import { SocialMediaUpdatesJob } from "./jobs/socialMediaUpdatesJob";
+import { SocialMediaService } from "./services/socialMediaService";
+import { BlueskyService } from "./services/blueskyService";
+import { MastodonService } from "./services/mastedonService";
 
 async function main() {
   Logger.info("Starting The Void Jobs Scheduler");
@@ -40,6 +44,18 @@ async function main() {
 
     const searchService = new SearchService();
 
+    // Create social media platform services
+    const blueskyService = new BlueskyService();
+    const mastodonService = new MastodonService();
+
+    // Create social media service with injected dependencies
+    const socialMediaService = new SocialMediaService({
+      llm: llmService,
+      data: dataService,
+      bluesky: blueskyService,
+      mastodon: mastodonService,
+    });
+
     // Register jobs
     const rssParsingJob = new RssParsingJob({
       llm: llmService,
@@ -56,6 +72,14 @@ async function main() {
     const socialMediaSearchJob = new SocialMediaSearchJob({
       llm: llmService,
       data: dataService,
+      socialMedia: socialMediaService,
+    });
+
+    const socialMediaUpdatesJob = new SocialMediaUpdatesJob({
+      data: dataService,
+      socialMedia: socialMediaService,
+      bluesky: blueskyService,
+      mastodon: mastodonService,
     });
 
     // Initialize the job scheduler
@@ -68,6 +92,14 @@ async function main() {
     scheduler.registerJob(rssParsingJob, hourlySchedule);
     scheduler.registerJob(aiAnalysisJob, hourlySchedule);
     scheduler.registerJob(socialMediaSearchJob, hourlySchedule);
+
+    // Register the social media updates job to run every 24 hours at 2 AM UTC
+    // This ensures compliance with social media platform ToS by updating posts daily
+    const dailyUpdatesSchedule = EnvConfig.get(
+      "UPDATES_JOB_SCHEDULE",
+      "0 2 * * *"
+    );
+    scheduler.registerJob(socialMediaUpdatesJob, dailyUpdatesSchedule);
 
     // Add more jobs here as needed
     // const anotherJob = new AnotherJob();

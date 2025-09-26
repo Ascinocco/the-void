@@ -13,6 +13,8 @@ import { AnalysisStatus } from "../lib/constants";
 interface SocialMediaServiceParams {
   llm: LLMService;
   data: DataService;
+  bluesky: BlueskyService;
+  mastodon: MastodonService;
 }
 
 export class SocialMediaService {
@@ -21,11 +23,11 @@ export class SocialMediaService {
   private readonly blueskyService: BlueskyService;
   private readonly mastodonService: MastodonService;
 
-  constructor({ llm, data }: SocialMediaServiceParams) {
+  constructor({ llm, data, bluesky, mastodon }: SocialMediaServiceParams) {
     this.llm = llm;
     this.dataService = data;
-    this.blueskyService = new BlueskyService();
-    this.mastodonService = new MastodonService();
+    this.blueskyService = bluesky;
+    this.mastodonService = mastodon;
   }
 
   /**
@@ -54,6 +56,9 @@ export class SocialMediaService {
       }
 
       // Step 2: Search both platforms in parallel for efficiency
+      Logger.info(
+        `Starting parallel search on both platforms for query: "${searchQuery}"`
+      );
       const [blueskyPosts, mastodonPosts] = await Promise.allSettled([
         this.searchBluesky(
           searchQuery,
@@ -73,7 +78,11 @@ export class SocialMediaService {
       const mastodonResults =
         mastodonPosts.status === "fulfilled" ? mastodonPosts.value : [];
 
-      // Log any failures but don't fail the entire operation
+      // Log detailed results and any failures
+      Logger.info(
+        `Search results: Bluesky ${blueskyResults.length} posts, Mastodon ${mastodonResults.length} posts`
+      );
+
       if (blueskyPosts.status === "rejected") {
         Logger.error("Bluesky search failed", blueskyPosts.reason);
       }
@@ -136,10 +145,18 @@ export class SocialMediaService {
     options?: any
   ): Promise<UnifiedSocialPost[]> => {
     try {
-      return await this.mastodonService.searchTopPostsByPopularity(query, {
-        limit,
-        ...options,
-      });
+      Logger.debug(
+        `Starting Mastodon search for query: "${query}" with limit ${limit}`
+      );
+      const results = await this.mastodonService.searchTopPostsByPopularity(
+        query,
+        {
+          limit,
+          ...options,
+        }
+      );
+      Logger.debug(`Mastodon search completed: found ${results.length} posts`);
+      return results;
     } catch (error) {
       Logger.error("Mastodon search failed", error as Error, { query, limit });
       throw new Error(
@@ -279,19 +296,25 @@ export class SocialMediaService {
     posts: UnifiedSocialPost[],
     articleId: number
   ): Promise<void> => {
-    if (posts.length === 0) {
-      return;
-    }
-
     try {
-      // First save the posts
-      await this.saveSocialPostsToDatabase(posts);
+      if (posts.length > 0) {
+        // First save the posts
+        await this.saveSocialPostsToDatabase(posts);
 
-      // Then link them to the article
-      const postIds = posts.map((post) => post.id);
-      await this.linkPostsToArticle(articleId, postIds);
+        // Then link them to the article
+        const postIds = posts.map((post) => post.id);
+        await this.linkPostsToArticle(articleId, postIds);
 
-      // Update article status to complete
+        Logger.info(
+          `Saved and linked ${posts.length} social media posts to article ${articleId}`
+        );
+      } else {
+        Logger.info(
+          `No social media posts found for article ${articleId}, marking as complete anyway`
+        );
+      }
+
+      // Always update article status to complete, regardless of whether posts were found
       const { error: updateError } = await this.dataService.supabase
         .from("articles")
         .update({

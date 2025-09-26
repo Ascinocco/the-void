@@ -34,6 +34,72 @@ export class MastodonService {
   }
 
   /**
+   * Get a specific status (post) by its ID
+   * @param statusId The status ID to fetch
+   * @param instance The Mastodon instance URL (optional, uses default if not provided)
+   * @param accessToken Access token for authentication (optional, uses default if not provided)
+   * @returns Promise<Status | null> The status or null if not found
+   */
+  getStatus = async (
+    statusId: string,
+    instance?: string,
+    accessToken?: string
+  ): Promise<Status | null> => {
+    try {
+      const baseUrl = instance || this.defaultInstance;
+      const token = accessToken || this.defaultAccessToken;
+      const endpoint = `/api/v1/statuses/${statusId}`;
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      Logger.debug("Making Mastodon getStatus request", {
+        baseUrl,
+        endpoint,
+        statusId,
+        hasToken: !!token,
+      });
+
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        method: "GET",
+        headers,
+      });
+
+      if (response.status === 404) {
+        // Status not found (deleted or never existed)
+        return null;
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        Logger.error(
+          `Mastodon getStatus API error: ${response.status} - ${errorText}`,
+          undefined,
+          {
+            status: response.status,
+            statusId,
+            instance: baseUrl,
+          }
+        );
+        throw new Error(
+          `Mastodon API error: ${response.status} - ${errorText}`
+        );
+      }
+
+      const status = (await response.json()) as Status;
+      return status;
+    } catch (error) {
+      Logger.debug(`Failed to fetch Mastodon status ${statusId}: ${error}`);
+      return null;
+    }
+  };
+
+  /**
    * Search Mastodon instance for accounts, statuses, or hashtags
    */
   search = async (
