@@ -1,0 +1,38 @@
+{
+  "name": "the-void-jobs",
+  "version": "1.0.0",
+  "description": "Hourly job scheduler for The Void",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "jobs",
+    "scheduler",
+    "typescript",
+    "node"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@extractus/feed-extractor": "^7.1.7",
+    "@supabase/supabase-js": "^2.58.0",
+    "@tavily/core": "^0.5.12",
+    "dotenv": "^16.3.1",
+    "node-cron": "^3.0.2",
+    "openai": "^5.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/node-cron": "^3.0.8",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
